@@ -21,6 +21,7 @@ export function agentsRouter(pool: Pool): Router {
       );
       res.json(result.rows);
     } catch (err) {
+      console.error('[agents:GET /] Failed to list agent messages', { taskId, projectId, err: String(err) });
       res.status(500).json({ error: 'Failed to list agent messages' });
     }
   });
@@ -33,9 +34,11 @@ export function agentsRouter(pool: Pool): Router {
         INSERT INTO agent_messages (from_agent, agent_id, message, task_id, project_id, metadata)
         VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING *
-      `, [fromAgent, agentId || null, message, taskId || null, projectId || null, metadata ? JSON.stringify(metadata) : null]);
+      `, [fromAgent, agentId || null, message, taskId || null, projectId || null,
+          metadata ? JSON.stringify(metadata) : null]);
       res.status(201).json(result.rows[0]);
     } catch (err) {
+      console.error('[agents:POST /] Failed to log agent message', { fromAgent, taskId, err: String(err) });
       res.status(500).json({ error: 'Failed to log agent message' });
     }
   });

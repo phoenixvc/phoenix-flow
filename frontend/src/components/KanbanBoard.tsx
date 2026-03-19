@@ -34,9 +34,15 @@ export function KanbanBoard({ tasks, projectId, onCreateTask, onUpdateTask, onMo
   const handleDrop = async (e: React.DragEvent, status: Status) => {
     e.preventDefault();
     const taskId = e.dataTransfer.getData('taskId');
-    if (taskId) await onMoveTask(taskId, status);
-    setDraggingId(null);
     setDragOverStatus(null);
+    if (!taskId) { setDraggingId(null); return; }
+    try {
+      await onMoveTask(taskId, status);
+    } catch (err) {
+      console.error('[KanbanBoard] Failed to move task', { taskId, status, err: String(err) });
+    } finally {
+      setDraggingId(null);
+    }
   };
 
   const handleDragOver = (e: React.DragEvent, status: Status) => {

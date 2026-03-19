@@ -3,6 +3,8 @@ import { Pool } from 'pg';
 export async function runMigrations(pool: Pool): Promise<void> {
   const client = await pool.connect();
   try {
+    await client.query('BEGIN');
+
     await client.query(`
       DO $$ BEGIN
         CREATE TYPE priority AS ENUM ('low', 'medium', 'high', 'critical');
@@ -66,14 +68,19 @@ export async function runMigrations(pool: Pool): Promise<void> {
       );
     `);
 
-    // Additive column migrations
+    // Additive column migrations — safe to re-run
     await client.query(`
       ALTER TABLE tasks ADD COLUMN IF NOT EXISTS agent_id TEXT;
       ALTER TABLE tasks ADD COLUMN IF NOT EXISTS agent_name TEXT;
       ALTER TABLE agent_messages ADD COLUMN IF NOT EXISTS agent_id TEXT;
     `);
 
-    console.log('Migrations complete');
+    await client.query('COMMIT');
+    console.log('[migrate] All migrations applied successfully');
+  } catch (err) {
+    console.error('[migrate] Migration failed — rolling back', { err: String(err) });
+    await client.query('ROLLBACK');
+    throw err;
   } finally {
     client.release();
   }

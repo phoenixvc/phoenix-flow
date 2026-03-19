@@ -7,6 +7,16 @@ export function checklistRouter(pool: Pool): Router {
   router.post('/', async (req: Request, res: Response) => {
     const { text } = req.body;
     if (!text) return res.status(400).json({ error: 'text required' });
+
+    // Verify parent task exists before inserting
+    try {
+      const task = await pool.query('SELECT id FROM tasks WHERE id = $1', [req.params.id]);
+      if (!task.rows.length) return res.status(404).json({ error: 'Task not found' });
+    } catch (err) {
+      console.error('[checklist:POST /] Failed to verify task', { taskId: req.params.id, err: String(err) });
+      return res.status(500).json({ error: 'Failed to add checklist item' });
+    }
+
     try {
       const result = await pool.query(`
         INSERT INTO checklist_items (task_id, text, sort_order)
@@ -15,6 +25,7 @@ export function checklistRouter(pool: Pool): Router {
       `, [req.params.id, text]);
       res.status(201).json(result.rows[0]);
     } catch (err) {
+      console.error('[checklist:POST /] Failed to add checklist item', { taskId: req.params.id, err: String(err) });
       res.status(500).json({ error: 'Failed to add checklist item' });
     }
   });
@@ -38,15 +49,21 @@ export function checklistRouter(pool: Pool): Router {
       if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
       res.json(result.rows[0]);
     } catch (err) {
+      console.error('[checklist:PUT /:itemId] Failed to update checklist item', { itemId: req.params.itemId, err: String(err) });
       res.status(500).json({ error: 'Failed to update checklist item' });
     }
   });
 
   router.delete('/:itemId', async (req: Request, res: Response) => {
     try {
-      await pool.query('DELETE FROM checklist_items WHERE id = $1 AND task_id = $2', [req.params.itemId, req.params.id]);
+      const result = await pool.query(
+        'DELETE FROM checklist_items WHERE id = $1 AND task_id = $2 RETURNING id',
+        [req.params.itemId, req.params.id]
+      );
+      if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
       res.status(204).send();
     } catch (err) {
+      console.error('[checklist:DELETE /:itemId] Failed to delete checklist item', { itemId: req.params.itemId, err: String(err) });
       res.status(500).json({ error: 'Failed to delete checklist item' });
     }
   });

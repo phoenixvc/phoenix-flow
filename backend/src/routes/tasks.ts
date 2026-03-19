@@ -1,11 +1,19 @@
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
 
+const VALID_STATUSES = new Set(['todo', 'inprogress', 'done']);
+const VALID_PRIORITIES = new Set(['low', 'medium', 'high', 'critical']);
+
 export function tasksRouter(pool: Pool): Router {
   const router = Router();
 
   router.get('/', async (req: Request, res: Response) => {
     const { projectId, status, search } = req.query;
+
+    if (status && !VALID_STATUSES.has(status as string)) {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
+
     const conditions: string[] = [];
     const params: unknown[] = [];
     let idx = 1;
@@ -30,6 +38,7 @@ export function tasksRouter(pool: Pool): Router {
       `, params);
       res.json(result.rows);
     } catch (err) {
+      console.error('[tasks:GET /] Failed to list tasks', { projectId, status, err: String(err) });
       res.status(500).json({ error: 'Failed to list tasks' });
     }
   });
@@ -37,6 +46,14 @@ export function tasksRouter(pool: Pool): Router {
   router.post('/', async (req: Request, res: Response) => {
     const { projectId, title, description, priority, status, isAiTask, agentId, agentName } = req.body;
     if (!projectId || !title) return res.status(400).json({ error: 'projectId and title required' });
+
+    if (priority && !VALID_PRIORITIES.has(priority)) {
+      return res.status(400).json({ error: 'Invalid priority value' });
+    }
+    if (status && !VALID_STATUSES.has(status)) {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
+
     try {
       const result = await pool.query(`
         INSERT INTO tasks (project_id, title, description, priority, status, is_ai_task, agent_id, agent_name)
@@ -46,6 +63,7 @@ export function tasksRouter(pool: Pool): Router {
           isAiTask || false, agentId || null, agentName || null]);
       res.status(201).json(result.rows[0]);
     } catch (err) {
+      console.error('[tasks:POST /] Failed to create task', { projectId, title, err: String(err) });
       res.status(500).json({ error: 'Failed to create task' });
     }
   });
@@ -58,16 +76,23 @@ export function tasksRouter(pool: Pool): Router {
       const messages = await pool.query('SELECT * FROM agent_messages WHERE task_id = $1 ORDER BY created_at ASC', [req.params.id]);
       res.json({ ...task.rows[0], checklistItems: checklist.rows, agentMessages: messages.rows });
     } catch (err) {
+      console.error('[tasks:GET /:id] Failed to get task', { id: req.params.id, err: String(err) });
       res.status(500).json({ error: 'Failed to get task' });
     }
   });
 
   router.put('/:id', async (req: Request, res: Response) => {
-    const fields = ['title', 'description', 'priority', 'status', 'is_ai_task', 'agent_id', 'agent_name'];
     const body = req.body;
     const sets: string[] = [];
     const params: unknown[] = [];
     let idx = 1;
+
+    if (body.priority && !VALID_PRIORITIES.has(body.priority)) {
+      return res.status(400).json({ error: 'Invalid priority value' });
+    }
+    if (body.status && !VALID_STATUSES.has(body.status)) {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
 
     const colMap: Record<string, string> = {
       title: 'title', description: 'description', priority: 'priority',
@@ -90,22 +115,25 @@ export function tasksRouter(pool: Pool): Router {
       if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
       res.json(result.rows[0]);
     } catch (err) {
+      console.error('[tasks:PUT /:id] Failed to update task', { id: req.params.id, err: String(err) });
       res.status(500).json({ error: 'Failed to update task' });
     }
   });
 
   router.delete('/:id', async (req: Request, res: Response) => {
     try {
-      await pool.query('DELETE FROM tasks WHERE id = $1', [req.params.id]);
+      const result = await pool.query('DELETE FROM tasks WHERE id = $1 RETURNING id', [req.params.id]);
+      if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
       res.status(204).send();
     } catch (err) {
+      console.error('[tasks:DELETE /:id] Failed to delete task', { id: req.params.id, err: String(err) });
       res.status(500).json({ error: 'Failed to delete task' });
     }
   });
 
   router.post('/:id/move', async (req: Request, res: Response) => {
     const { status } = req.body;
-    if (!['todo', 'inprogress', 'done'].includes(status)) {
+    if (!VALID_STATUSES.has(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
     try {
@@ -116,6 +144,7 @@ export function tasksRouter(pool: Pool): Router {
       if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
       res.json(result.rows[0]);
     } catch (err) {
+      console.error('[tasks:POST /:id/move] Failed to move task', { id: req.params.id, status, err: String(err) });
       res.status(500).json({ error: 'Failed to move task' });
     }
   });

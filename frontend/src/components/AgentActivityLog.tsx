@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { AgentMessage } from '../types';
 import { agentColor, agentInitials, formatRelativeTime, truncateId } from '../utils';
 import * as api from '../api';
@@ -8,22 +8,41 @@ interface Props {
   initialMessages?: AgentMessage[];
 }
 
+const POLL_INTERVAL_MS = 10_000;
+const MAX_CONSECUTIVE_FAILURES = 3;
+
 export function AgentActivityLog({ taskId, initialMessages = [] }: Props) {
   const [messages, setMessages] = useState<AgentMessage[]>(initialMessages);
+  const failureCount = useRef(0);
 
-  // Poll for new messages every 10s when component is mounted
   useEffect(() => {
+    // Reset failure count when taskId changes; AbortController prevents stale updates
+    failureCount.current = 0;
+    let cancelled = false;
+
     const poll = async () => {
+      if (cancelled) return;
       try {
         const data = await api.getAgentMessages({ taskId });
-        setMessages(data);
-      } catch { /* silent */ }
+        if (!cancelled) {
+          setMessages(data);
+          failureCount.current = 0;
+        }
+      } catch (err) {
+        failureCount.current++;
+        if (failureCount.current <= MAX_CONSECUTIVE_FAILURES) {
+          console.warn('[AgentActivityLog] Poll failed', { taskId, attempt: failureCount.current, err: String(err) });
+        }
+        // Stop logging after threshold to avoid console spam; polling continues silently
+      }
     };
-    const timer = setInterval(poll, 10000);
-    return () => clearInterval(timer);
-  }, [taskId]);
 
-  useEffect(() => { setMessages(initialMessages); }, [initialMessages]);
+    const timer = setInterval(poll, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [taskId]);
 
   if (!messages.length) {
     return (

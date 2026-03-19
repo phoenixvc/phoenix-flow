@@ -26,7 +26,18 @@ async function callAI(endpoint: string, body: object): Promise<ActionResult> {
     body: JSON.stringify(body),
   });
   if (res.status === 404) throw new Error('AI features not yet available');
-  if (!res.ok) throw new Error('AI request failed');
+  if (!res.ok) {
+    // Try to read a structured error message from the response body
+    let detail = '';
+    try {
+      const json = await res.json();
+      detail = json.error || json.message || '';
+    } catch {
+      // Response body was not JSON — use status text
+      detail = res.statusText;
+    }
+    throw new Error(detail || 'AI request failed');
+  }
   return res.json();
 }
 
@@ -77,7 +88,7 @@ function ActionButton({
       </button>
       {resultPreview && (
         <div className={`text-[10px] px-2 py-1 rounded bg-[#0a0a0a] border border-[#1a1a1a] leading-relaxed
-          ${isSuccess ? 'text-emerald-400' : 'text-zinc-500'}`}>
+          ${isSuccess ? 'text-emerald-400' : 'text-red-400'}`}>
           {resultPreview}
         </div>
       )}
@@ -94,7 +105,8 @@ export function AIActions({ task, onChecklistAdd, onDescriptionUpdate, onPriorit
   const [draftPreview, setDraftPreview] = useState('');
   const [priorityPreview, setPriorityPreview] = useState('');
 
-  const reset = (setter: (s: ActionState) => void) => {
+  // Only auto-reset to idle on success; errors persist until the user clicks again
+  const resetOnSuccess = (setter: (s: ActionState) => void) => {
     setTimeout(() => setter('idle'), 3000);
   };
 
@@ -107,11 +119,11 @@ export function AIActions({ task, onChecklistAdd, onDescriptionUpdate, onPriorit
       setBreakdownPreview(`Generated ${subtasks.length} subtasks`);
       subtasks.forEach(text => onChecklistAdd?.(text));
       setBreakdownState('success');
+      resetOnSuccess(setBreakdownState);
     } catch (e) {
       setBreakdownPreview(e instanceof Error ? e.message : 'Error');
       setBreakdownState('error');
-    } finally {
-      reset(setBreakdownState);
+      // Error state persists — user must click "Try again" to retry
     }
   };
 
@@ -125,11 +137,10 @@ export function AIActions({ task, onChecklistAdd, onDescriptionUpdate, onPriorit
         setDraftPreview(result.description.slice(0, 80) + (result.description.length > 80 ? '…' : ''));
       }
       setDraftState('success');
+      resetOnSuccess(setDraftState);
     } catch (e) {
       setDraftPreview(e instanceof Error ? e.message : 'Error');
       setDraftState('error');
-    } finally {
-      reset(setDraftState);
     }
   };
 
@@ -143,11 +154,10 @@ export function AIActions({ task, onChecklistAdd, onDescriptionUpdate, onPriorit
         setPriorityPreview(`Suggested: ${result.priority}`);
       }
       setPriorityState('success');
+      resetOnSuccess(setPriorityState);
     } catch (e) {
       setPriorityPreview(e instanceof Error ? e.message : 'Error');
       setPriorityState('error');
-    } finally {
-      reset(setPriorityState);
     }
   };
 

@@ -6,6 +6,7 @@ export function useProjects() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   const fetch = useCallback(async () => {
     try {
@@ -23,21 +24,42 @@ export function useProjects() {
   useEffect(() => { fetch(); }, [fetch]);
 
   const createProject = useCallback(async (data: { name: string; color?: string; repoUrl?: string }) => {
-    const p = await api.createProject(data);
-    setProjects(prev => [...prev, p]);
-    return p;
+    setMutationError(null);
+    try {
+      const p = await api.createProject(data);
+      setProjects(prev => [...prev, p]);
+      return p;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to create project';
+      setMutationError(msg);
+      throw e;
+    }
   }, []);
 
   const deleteProject = useCallback(async (id: string) => {
-    await api.deleteProject(id);
-    setProjects(prev => prev.filter(p => p.id !== id));
+    setMutationError(null);
+    try {
+      await api.deleteProject(id);
+      setProjects(prev => prev.filter(p => p.id !== id));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to delete project';
+      setMutationError(msg);
+      throw e;
+    }
   }, []);
 
   const syncYaml = useCallback(async (projectId: string) => {
-    const result = await api.syncYaml(projectId);
-    await fetch();
-    return result;
+    setMutationError(null);
+    try {
+      const result = await api.syncYaml(projectId);
+      await fetch();
+      return result;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to sync YAML';
+      setMutationError(msg);
+      throw e;
+    }
   }, [fetch]);
 
-  return { projects, loading, error, createProject, deleteProject, syncYaml, refetch: fetch };
+  return { projects, loading, error, mutationError, createProject, deleteProject, syncYaml, refetch: fetch };
 }

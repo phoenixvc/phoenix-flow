@@ -12,7 +12,12 @@ import { mcpRouter } from './mcp/server.js';
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const app = express();
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
+
+const corsOrigin = process.env.CORS_ORIGIN;
+if (!corsOrigin && process.env.NODE_ENV === 'production') {
+  console.error('[startup] CORS_ORIGIN is not set in production — defaulting to wildcard. Set CORS_ORIGIN to restrict access.');
+}
+app.use(cors({ origin: corsOrigin || '*' }));
 app.use(express.json());
 
 app.get('/health', (_req, res) => {

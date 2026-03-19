@@ -18,16 +18,23 @@ interface Props {
 
 export function TaskDetail({ task: initialTask, onClose, onUpdate }: Props) {
   const [task, setTask] = useState<Task>(initialTask);
-  const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState(false);
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description || '');
   const [newChecklistItem, setNewChecklistItem] = useState('');
   const titleInputRef = useRef<HTMLInputElement>(null);
 
-  // Load full task detail
+  // Load full task detail (checklist + agent messages)
   useEffect(() => {
-    api.getTask(initialTask.id).then(t => setTask(t)).catch(() => {});
+    api.getTask(initialTask.id).then(t => {
+      setTask(t);
+      setTitle(t.title);
+      setDescription(t.description || '');
+    }).catch(err => {
+      console.error('[TaskDetail] Failed to load task detail', { id: initialTask.id, err: String(err) });
+      setFetchError('Failed to load task details');
+    });
   }, [initialTask.id]);
 
   useEffect(() => {
@@ -41,34 +48,60 @@ export function TaskDetail({ task: initialTask, onClose, onUpdate }: Props) {
   }, [editTitle]);
 
   const save = async (updates: Partial<Task>) => {
-    const merged = { ...task, ...updates };
-    setTask(merged);
-    await onUpdate(task.id, updates);
+    const previous = task;
+    setTask(merged => ({ ...merged, ...updates }));
+    try {
+      await onUpdate(task.id, updates);
+    } catch (err) {
+      // Rollback on failure
+      console.error('[TaskDetail] Save failed, rolling back', { id: task.id, err: String(err) });
+      setTask(previous);
+    }
   };
 
   const handleTitleBlur = async () => {
     setEditTitle(false);
-    if (title !== task.title) await save({ title });
+    if (title !== task.title) {
+      try {
+        await save({ title });
+      } catch {
+        setTitle(task.title);
+      }
+    }
   };
 
   const handleDescriptionBlur = async () => {
-    if (description !== (task.description || '')) await save({ description });
+    if (description !== (task.description || '')) {
+      try {
+        await save({ description });
+      } catch {
+        setDescription(task.description || '');
+      }
+    }
   };
 
   const handleToggleChecklist = async (item: ChecklistItem) => {
     const updated = !item.done;
-    await api.toggleChecklistItem(task.id, item.id, updated);
-    setTask(t => ({
-      ...t,
-      checklistItems: t.checklistItems?.map(ci => ci.id === item.id ? { ...ci, done: updated } : ci),
-    }));
+    try {
+      await api.toggleChecklistItem(task.id, item.id, updated);
+      setTask(t => ({
+        ...t,
+        checklistItems: t.checklistItems?.map(ci => ci.id === item.id ? { ...ci, done: updated } : ci),
+      }));
+    } catch (err) {
+      console.error('[TaskDetail] Failed to toggle checklist item', { itemId: item.id, err: String(err) });
+    }
   };
 
   const handleAddChecklist = async (text: string) => {
     if (!text.trim()) return;
-    const item = await api.addChecklistItem(task.id, text.trim());
-    setTask(t => ({ ...t, checklistItems: [...(t.checklistItems || []), item] }));
-    setNewChecklistItem('');
+    try {
+      const item = await api.addChecklistItem(task.id, text.trim());
+      setTask(t => ({ ...t, checklistItems: [...(t.checklistItems || []), item] }));
+      setNewChecklistItem('');
+    } catch (err) {
+      console.error('[TaskDetail] Failed to add checklist item', { err: String(err) });
+    }
   };
 
   const checklist = task.checklistItems || [];
@@ -113,6 +146,12 @@ export function TaskDetail({ task: initialTask, onClose, onUpdate }: Props) {
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          {fetchError && (
+            <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded px-3 py-2">
+              {fetchError}
+            </div>
+          )}
+
           {/* Meta row */}
           <div className="flex items-center gap-3 flex-wrap">
             <select
