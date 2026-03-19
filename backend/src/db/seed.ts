@@ -8,7 +8,10 @@
  */
 import { Pool } from 'pg';
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('railway') ? { rejectUnauthorized: false } : false,
+});
 
 async function seed(): Promise<void> {
   const client = await pool.connect();
@@ -94,7 +97,7 @@ async function seed(): Promise<void> {
     await client.query(`
       INSERT INTO checklist_items (task_id, text, sort_order) VALUES
         ($1, 'Go to Railway project → backend service → Variables', 1),
-        ($1, 'Add reference: DATABASE_URL = ${{Postgres.DATABASE_URL}}',    2),
+        ($1, 'Add reference: DATABASE_URL = $' || '{Postgres.DATABASE_URL}', 2),
         ($1, 'Remove hardcoded postgresql:// connection string',            3),
         ($1, 'Redeploy and confirm /health still returns ok',               4)
     `, [dbTask.id]);
