@@ -7,6 +7,7 @@ import { tasksRouter } from './routes/tasks.js';
 import { agentsRouter } from './routes/agents.js';
 import { checklistRouter } from './routes/checklist.js';
 import { linksRouter } from './routes/links.js';
+import { aiRouter } from './routes/ai.js';
 import { mcpRouter } from './mcp/server.js';
 import { verifyMystiraJwt } from './middleware/auth.js';
 
@@ -36,6 +37,7 @@ app.use('/api/tasks', tasksRouter(pool));
 app.use('/api/agent-messages', agentsRouter(pool));
 app.use('/api/tasks/:id/checklist', checklistRouter(pool));
 app.use('/api/deep-links', linksRouter(pool));
+app.use('/api/ai', aiRouter);
 
 const PORT = process.env.PORT || 3001;
 

@@ -22,6 +22,8 @@ Part of the phoenixvc three-tier MCP hierarchy:
 | GITHUB_TOKEN | PAT with contents:read — for YAML sync from repos |
 | MCP_SECRET | Bearer token agents send to /mcp — generate: openssl rand -hex 32 |
 | ANTHROPIC_API_KEY | For AI action buttons (Break Down, Draft Desc, Suggest Priority) |
+| COGNITIVE_MESH_API_URL | cognitive-mesh base URL (defaults to Azure Container Apps prod URL) |
+| COGNITIVE_MESH_API_KEY | X-Api-Key for cognitive-mesh (from Key Vault `cognitive-mesh-api-key`) |
 | PORT | Set automatically by Railway |
 
 ## Frontend env vars
