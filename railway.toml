@@ -1,0 +1,14 @@
+[build]
+builder = "nixpacks"
+
+[[services]]
+name = "frontend"
+source = "frontend"
+buildCommand = "npm run build"
+startCommand = "npm run preview"
+
+[[services]]
+name = "backend"
+source = "backend"
+buildCommand = "npm run build"
+startCommand = "node dist/index.js"
