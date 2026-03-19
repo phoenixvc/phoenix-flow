@@ -54,13 +54,15 @@ export function tasksRouter(pool: Pool): Router {
       return res.status(400).json({ error: 'Invalid status value' });
     }
 
+    const createdByUser = req.user?.sub || null;
+
     try {
       const result = await pool.query(`
-        INSERT INTO tasks (project_id, title, description, priority, status, is_ai_task, agent_id, agent_name)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO tasks (project_id, title, description, priority, status, is_ai_task, agent_id, agent_name, created_by_user)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
       `, [projectId, title, description || null, priority || 'medium', status || 'todo',
-          isAiTask || false, agentId || null, agentName || null]);
+          isAiTask || false, agentId || null, agentName || null, createdByUser]);
       res.status(201).json(result.rows[0]);
     } catch (err) {
       console.error('[tasks:POST /] Failed to create task', { projectId, title, err: String(err) });

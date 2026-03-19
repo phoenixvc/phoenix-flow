@@ -8,6 +8,7 @@ import { agentsRouter } from './routes/agents.js';
 import { checklistRouter } from './routes/checklist.js';
 import { linksRouter } from './routes/links.js';
 import { mcpRouter } from './mcp/server.js';
+import { verifyMystiraJwt } from './middleware/auth.js';
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -20,16 +21,21 @@ if (!corsOrigin && process.env.NODE_ENV === 'production') {
 app.use(cors({ origin: corsOrigin || '*' }));
 app.use(express.json());
 
+// Public routes — no auth
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// MCP routes use their own Bearer secret — untouched
+app.use('/mcp', mcpRouter(pool));
+
+// All API routes require a valid Mystira JWT
+app.use('/api', verifyMystiraJwt);
 app.use('/api/projects', projectsRouter(pool));
 app.use('/api/tasks', tasksRouter(pool));
 app.use('/api/agent-messages', agentsRouter(pool));
 app.use('/api/tasks/:id/checklist', checklistRouter(pool));
 app.use('/api/deep-links', linksRouter(pool));
-app.use('/mcp', mcpRouter(pool));
 
 const PORT = process.env.PORT || 3001;
 

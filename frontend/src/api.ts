@@ -1,11 +1,12 @@
 import type { Project, Task, ChecklistItem, AgentMessage, DeepLink, Priority, Status } from './types';
+import { getAuthHeaders } from './auth';
 
 const BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
 async function req<T>(path: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...opts,
-    headers: { 'Content-Type': 'application/json', ...opts?.headers },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders(), ...opts?.headers },
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));

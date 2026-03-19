@@ -2,11 +2,17 @@ import React, { useState } from 'react';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { KanbanBoard } from './components/KanbanBoard';
+import { AuthCallback } from './components/AuthCallback';
 import { useProjects } from './hooks/useProjects';
 import { useTasks } from './hooks/useTasks';
 import type { Status, Priority } from './types';
 
 export default function App() {
+  // Handle magic link callback: /auth/callback?token=<jwt>
+  if (window.location.pathname === '/auth/callback') {
+    return <AuthCallback />;
+  }
+
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [syncing, setSyncing] = useState(false);
