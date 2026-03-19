@@ -30,8 +30,12 @@ app.get('/health', (_req, res) => {
 // MCP routes use their own Bearer secret — untouched
 app.use('/mcp', mcpRouter(pool));
 
-// All API routes require a valid Mystira JWT
-app.use('/api', verifyMystiraJwt);
+// JWT auth — enabled when REQUIRE_AUTH=true (default: off until Mystira Identity is wired)
+if (process.env.REQUIRE_AUTH === 'true') {
+  app.use('/api', verifyMystiraJwt);
+} else {
+  console.warn('[startup] REQUIRE_AUTH is not set — API routes are unauthenticated');
+}
 app.use('/api/projects', projectsRouter(pool));
 app.use('/api/tasks', tasksRouter(pool));
 app.use('/api/agent-messages', agentsRouter(pool));
