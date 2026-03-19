@@ -63,7 +63,7 @@ export default function App() {
             projects={projects}
             selectedId={selectedProjectId}
             onSelect={setSelectedProjectId}
-            onCreate={createProject}
+            onCreate={async (data) => { await createProject(data); }}
             onDelete={deleteProject}
           />
         )}
@@ -75,8 +75,8 @@ export default function App() {
               if (!selectedProjectId) return;
               await createTask({ projectId: selectedProjectId, title, priority, isAiTask, status });
             }}
-            onUpdateTask={updateTask}
-            onMoveTask={moveTask}
+            onUpdateTask={async (id, data) => { await updateTask(id, data as Parameters<typeof updateTask>[1]); }}
+            onMoveTask={async (id, status) => { await moveTask(id, status); }}
           />
         </main>
       </div>
