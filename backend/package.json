@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "node --max-old-space-size=4096 node_modules/.bin/tsc",
+    "typecheck": "tsc --noEmit",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node22 --outfile=dist/index.js --format=cjs",
     "start": "node dist/index.js",
     "db:migrate": "tsx src/db/migrate.ts"
   },
@@ -21,6 +22,7 @@
     "@types/node": "^22.9.0",
     "@types/pg": "^8.11.10",
     "drizzle-kit": "^0.28.0",
+    "esbuild": "^0.24.0",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3"
   }
