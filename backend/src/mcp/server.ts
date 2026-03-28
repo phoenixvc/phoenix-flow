@@ -88,13 +88,21 @@ export function mcpRouter(pool: Pool): Router {
         isAiTask: z.boolean().optional(),
         agentId: z.string().optional(),
         agentName: z.string().optional(),
+        controlledBy: z.string().optional(),
+        context: z.string().optional(),
+        traceId: z.string().optional(),
+        triggeredBy: z.string().optional(),
       }),
-    }, async ({ projectId, title, description, priority, isAiTask, agentId, agentName }) => {
+    }, async ({ projectId, title, description, priority, isAiTask, agentId, agentName,
+                controlledBy, context, traceId, triggeredBy }) => {
       try {
         const result = await pool.query(`
-          INSERT INTO tasks (project_id, title, description, priority, is_ai_task, agent_id, agent_name)
-          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
-        `, [projectId, title, description || null, priority || 'medium', isAiTask || false, agentId || null, agentName || null]);
+          INSERT INTO tasks (project_id, title, description, priority, is_ai_task, agent_id, agent_name,
+                             controlled_by, context, trace_id, triggered_by)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *
+        `, [projectId, title, description || null, priority || 'medium', isAiTask || false,
+            agentId || null, agentName || null,
+            controlledBy || null, context || null, traceId || null, triggeredBy || null]);
         return { content: [{ type: 'text', text: JSON.stringify(result.rows[0], null, 2) }] };
       } catch (err) { return mcpError('create_task', err, { projectId, title }); }
     });
@@ -109,12 +117,17 @@ export function mcpRouter(pool: Pool): Router {
         status: z.enum(['todo', 'inprogress', 'done']).optional(),
         agentId: z.string().optional(),
         agentName: z.string().optional(),
+        controlledBy: z.string().optional(),
+        context: z.string().optional(),
+        traceId: z.string().optional(),
+        triggeredBy: z.string().optional(),
       }),
     }, async ({ taskId, ...fields }) => {
       try {
         const colMap: Record<string, string> = {
           title: 'title', description: 'description', priority: 'priority',
           status: 'status', agentId: 'agent_id', agentName: 'agent_name',
+          controlledBy: 'controlled_by', context: 'context', traceId: 'trace_id', triggeredBy: 'triggered_by',
         };
         const sets: string[] = [];
         const params: unknown[] = [];
@@ -226,7 +239,7 @@ export function mcpRouter(pool: Pool): Router {
         const projectFilter = projectId ? `AND project_id = $2` : '';
         if (projectId) params.push(projectId);
         const result = await pool.query(
-          `SELECT * FROM tasks WHERE title ILIKE $1 ${projectFilter} ORDER BY created_at DESC LIMIT 20`,
+          `SELECT * FROM tasks WHERE (title ILIKE $1 OR context ILIKE $1) ${projectFilter} ORDER BY created_at DESC LIMIT 20`,
           params
         );
         return { content: [{ type: 'text', text: JSON.stringify(result.rows, null, 2) }] };

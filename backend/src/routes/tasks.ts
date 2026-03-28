@@ -20,7 +20,7 @@ export function tasksRouter(pool: Pool): Router {
 
     if (projectId) { conditions.push(`t.project_id = $${idx++}`); params.push(projectId); }
     if (status) { conditions.push(`t.status = $${idx++}`); params.push(status); }
-    if (search) { conditions.push(`t.title ILIKE $${idx++}`); params.push(`%${search}%`); }
+    if (search) { conditions.push(`(t.title ILIKE $${idx} OR t.context ILIKE $${idx})`); params.push(`%${search}%`); idx++; }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     try {
@@ -44,7 +44,8 @@ export function tasksRouter(pool: Pool): Router {
   });
 
   router.post('/', async (req: Request, res: Response) => {
-    const { projectId, title, description, priority, status, isAiTask, agentId, agentName } = req.body;
+    const { projectId, title, description, priority, status, isAiTask, agentId, agentName,
+            controlledBy, context, traceId, triggeredBy } = req.body;
     if (!projectId || !title) return res.status(400).json({ error: 'projectId and title required' });
 
     if (priority && !VALID_PRIORITIES.has(priority)) {
@@ -58,11 +59,13 @@ export function tasksRouter(pool: Pool): Router {
 
     try {
       const result = await pool.query(`
-        INSERT INTO tasks (project_id, title, description, priority, status, is_ai_task, agent_id, agent_name, created_by_user)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        INSERT INTO tasks (project_id, title, description, priority, status, is_ai_task, agent_id, agent_name,
+                           created_by_user, controlled_by, context, trace_id, triggered_by)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING *
       `, [projectId, title, description || null, priority || 'medium', status || 'todo',
-          isAiTask || false, agentId || null, agentName || null, createdByUser]);
+          isAiTask || false, agentId || null, agentName || null, createdByUser,
+          controlledBy || null, context || null, traceId || null, triggeredBy || null]);
       res.status(201).json(result.rows[0]);
     } catch (err) {
       console.error('[tasks:POST /] Failed to create task', { projectId, title, err: String(err) });
@@ -98,7 +101,8 @@ export function tasksRouter(pool: Pool): Router {
 
     const colMap: Record<string, string> = {
       title: 'title', description: 'description', priority: 'priority',
-      status: 'status', isAiTask: 'is_ai_task', agentId: 'agent_id', agentName: 'agent_name'
+      status: 'status', isAiTask: 'is_ai_task', agentId: 'agent_id', agentName: 'agent_name',
+      controlledBy: 'controlled_by', context: 'context', traceId: 'trace_id', triggeredBy: 'triggered_by',
     };
 
     for (const [key, col] of Object.entries(colMap)) {
