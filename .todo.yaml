@@ -1,0 +1,12 @@
+version: "1.0"
+scope: todo
+repo: JustAGhosT/phoenix-flow
+updated_at: 2026-03-28
+
+tasks:
+  - id: upgrade-mcp-sdk-1.28
+    title: "Upgrade @modelcontextprotocol/sdk from 1.27.1 → 1.28.x"
+    priority: medium
+    status: todo
+    tags: [dependencies, mcp, breaking-change]
+    notes: "v1.28.0 removes McpServer and StreamableHTTPServerTransport (CJS→ESM restructure). Requires rewriting tool registration to use low-level Server API with setRequestHandler + CallToolRequestSchema. Do not upgrade until migration guide is available or both phoenix-flow and mcp-org can be updated together."

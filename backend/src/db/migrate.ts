@@ -74,6 +74,10 @@ export async function runMigrations(pool: Pool): Promise<void> {
       ALTER TABLE tasks ADD COLUMN IF NOT EXISTS agent_name TEXT;
       ALTER TABLE agent_messages ADD COLUMN IF NOT EXISTS agent_id TEXT;
       ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by_user TEXT;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS controlled_by TEXT;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS context TEXT;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS trace_id TEXT;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS triggered_by TEXT;
     `);
 
     await client.query('COMMIT');

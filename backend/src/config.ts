@@ -11,6 +11,10 @@ export const config = {
     issuer: process.env.MYSTIRA_JWT_ISSUER || 'mystira-identity-api',
     audience: process.env.MYSTIRA_JWT_AUDIENCE || 'mystira-platform',
   },
+  mcpOrg: {
+    url: process.env.MCP_ORG_URL ?? 'https://mcp-org-production.up.railway.app',
+    secret: process.env.MCP_ORG_SECRET,
+  },
 } as const;
 
 if (process.env.NODE_ENV === 'production') {
