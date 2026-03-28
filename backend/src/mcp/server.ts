@@ -5,6 +5,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { Request, Response, Router } from 'express';
 import { Pool } from 'pg';
 import { z } from 'zod';
+import { callOrgTool } from './orgClient.js';
 
 function mcpError(tool: string, err: unknown, context: Record<string, unknown> = {}) {
   console.error(`[MCP:${tool}] Error`, { ...context, err: String(err) });
@@ -252,6 +253,28 @@ export function mcpRouter(pool: Pool): Router {
     }, async ({ projectId }) => {
       return { content: [{ type: 'text', text: `Trigger sync via POST /api/projects/${projectId}/sync-yaml` }] };
     });
+
+    // --- Org-level passthrough tools (delegate to mcp-org) ---
+
+    server.registerTool('get_org_roadmap', {
+      description: 'Get the org-level roadmap from mcp-org',
+      inputSchema: z.object({ status: z.string().optional() }),
+    }, async (args) => callOrgTool('get_org_roadmap', args));
+
+    server.registerTool('list_org_projects', {
+      description: 'List all projects registered in the org',
+      inputSchema: z.object({}),
+    }, async () => callOrgTool('list_projects'));
+
+    server.registerTool('search_org_tasks', {
+      description: 'Search tasks across all projects in the org',
+      inputSchema: z.object({ query: z.string(), projectId: z.string().optional() }),
+    }, async (args) => callOrgTool('search_org_tasks', args));
+
+    server.registerTool('get_org_health', {
+      description: 'Get org health summary — task counts, sync status, stale projects',
+      inputSchema: z.object({}),
+    }, async () => callOrgTool('get_org_health'));
 
     server.registerTool('get_yaml_source', {
       description: 'Get the repo URL for a project\'s YAML source',
