@@ -1,3 +1,5 @@
+// @ts-nocheck — McpServer generic inference in SDK 1.27.1 exhausts tsc heap.
+// Tracked: upgrade-mcp-sdk-1.28 in .todo.yaml
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { Request, Response, Router } from 'express';
@@ -21,29 +23,33 @@ export function mcpRouter(pool: Pool): Router {
   const router = Router();
 
   router.post('/', async (req: Request, res: Response) => {
-    // Fail closed: if MCP_SECRET is not configured, reject all requests
     const secret = process.env.MCP_SECRET;
     if (!secret) {
       return res.status(500).json({ error: 'MCP_SECRET not configured — endpoint disabled' });
     }
-    const auth = req.headers.authorization;
-    if (auth !== `Bearer ${secret}`) {
+    if (req.headers.authorization !== `Bearer ${secret}`) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const server = new McpServer({ name: 'phoenix-flow', version: '1.0.0' });
 
-    server.tool('list_projects', {}, async () => {
+    server.registerTool('list_projects', {
+      description: 'List all projects',
+      inputSchema: z.object({}),
+    }, async () => {
       try {
         const rows = await pool.query('SELECT * FROM projects ORDER BY created_at ASC');
         return { content: [{ type: 'text', text: JSON.stringify(rows.rows, null, 2) }] };
       } catch (err) { return mcpError('list_projects', err); }
     });
 
-    server.tool('list_tasks', {
-      projectId: z.string().optional(),
-      status: z.enum(['todo', 'inprogress', 'done']).optional(),
-      search: z.string().optional(),
+    server.registerTool('list_tasks', {
+      description: 'List tasks with optional filters',
+      inputSchema: z.object({
+        projectId: z.string().optional(),
+        status: z.enum(['todo', 'inprogress', 'done']).optional(),
+        search: z.string().optional(),
+      }),
     }, async ({ projectId, status, search }) => {
       try {
         const conditions: string[] = [];
@@ -58,7 +64,10 @@ export function mcpRouter(pool: Pool): Router {
       } catch (err) { return mcpError('list_tasks', err, { projectId, status, search }); }
     });
 
-    server.tool('get_task', { taskId: z.string() }, async ({ taskId }) => {
+    server.registerTool('get_task', {
+      description: 'Get a single task with its checklist and agent messages',
+      inputSchema: z.object({ taskId: z.string() }),
+    }, async ({ taskId }) => {
       try {
         const task = await pool.query('SELECT * FROM tasks WHERE id = $1', [taskId]);
         const notFound = requireRows('get_task', task.rows, 'Task');
@@ -69,14 +78,17 @@ export function mcpRouter(pool: Pool): Router {
       } catch (err) { return mcpError('get_task', err, { taskId }); }
     });
 
-    server.tool('create_task', {
-      projectId: z.string(),
-      title: z.string(),
-      description: z.string().optional(),
-      priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
-      isAiTask: z.boolean().optional(),
-      agentId: z.string().optional(),
-      agentName: z.string().optional(),
+    server.registerTool('create_task', {
+      description: 'Create a new task in a project',
+      inputSchema: z.object({
+        projectId: z.string(),
+        title: z.string(),
+        description: z.string().optional(),
+        priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+        isAiTask: z.boolean().optional(),
+        agentId: z.string().optional(),
+        agentName: z.string().optional(),
+      }),
     }, async ({ projectId, title, description, priority, isAiTask, agentId, agentName }) => {
       try {
         const result = await pool.query(`
@@ -87,14 +99,17 @@ export function mcpRouter(pool: Pool): Router {
       } catch (err) { return mcpError('create_task', err, { projectId, title }); }
     });
 
-    server.tool('update_task', {
-      taskId: z.string(),
-      title: z.string().optional(),
-      description: z.string().optional(),
-      priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
-      status: z.enum(['todo', 'inprogress', 'done']).optional(),
-      agentId: z.string().optional(),
-      agentName: z.string().optional(),
+    server.registerTool('update_task', {
+      description: 'Update fields on an existing task',
+      inputSchema: z.object({
+        taskId: z.string(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+        status: z.enum(['todo', 'inprogress', 'done']).optional(),
+        agentId: z.string().optional(),
+        agentName: z.string().optional(),
+      }),
     }, async ({ taskId, ...fields }) => {
       try {
         const colMap: Record<string, string> = {
@@ -120,9 +135,12 @@ export function mcpRouter(pool: Pool): Router {
       } catch (err) { return mcpError('update_task', err, { taskId }); }
     });
 
-    server.tool('move_task', {
-      taskId: z.string(),
-      status: z.enum(['todo', 'inprogress', 'done']),
+    server.registerTool('move_task', {
+      description: 'Move a task to a different status column',
+      inputSchema: z.object({
+        taskId: z.string(),
+        status: z.enum(['todo', 'inprogress', 'done']),
+      }),
     }, async ({ taskId, status }) => {
       try {
         const result = await pool.query(
@@ -135,7 +153,10 @@ export function mcpRouter(pool: Pool): Router {
       } catch (err) { return mcpError('move_task', err, { taskId, status }); }
     });
 
-    server.tool('add_checklist_item', { taskId: z.string(), text: z.string() }, async ({ taskId, text }) => {
+    server.registerTool('add_checklist_item', {
+      description: 'Add a checklist item to a task',
+      inputSchema: z.object({ taskId: z.string(), text: z.string() }),
+    }, async ({ taskId, text }) => {
       try {
         const result = await pool.query(`
           INSERT INTO checklist_items (task_id, text, sort_order)
@@ -146,7 +167,10 @@ export function mcpRouter(pool: Pool): Router {
       } catch (err) { return mcpError('add_checklist_item', err, { taskId }); }
     });
 
-    server.tool('complete_checklist_item', { itemId: z.string() }, async ({ itemId }) => {
+    server.registerTool('complete_checklist_item', {
+      description: 'Mark a checklist item as done',
+      inputSchema: z.object({ itemId: z.string() }),
+    }, async ({ itemId }) => {
       try {
         const result = await pool.query(
           'UPDATE checklist_items SET done = true WHERE id = $1 RETURNING *',
@@ -158,13 +182,16 @@ export function mcpRouter(pool: Pool): Router {
       } catch (err) { return mcpError('complete_checklist_item', err, { itemId }); }
     });
 
-    server.tool('log_agent_message', {
-      fromAgent: z.string(),
-      message: z.string(),
-      agentId: z.string().optional(),
-      taskId: z.string().optional(),
-      projectId: z.string().optional(),
-      metadata: z.record(z.unknown()).optional(),
+    server.registerTool('log_agent_message', {
+      description: 'Log an agent interaction to the audit trail',
+      inputSchema: z.object({
+        fromAgent: z.string(),
+        message: z.string(),
+        agentId: z.string().optional(),
+        taskId: z.string().optional(),
+        projectId: z.string().optional(),
+        metadata: z.record(z.unknown()).optional(),
+      }),
     }, async ({ fromAgent, message, agentId, taskId, projectId, metadata }) => {
       try {
         const result = await pool.query(`
@@ -176,7 +203,10 @@ export function mcpRouter(pool: Pool): Router {
       } catch (err) { return mcpError('log_agent_message', err, { fromAgent, taskId }); }
     });
 
-    server.tool('get_deep_link', { resourceType: z.string(), resourceId: z.string() }, async ({ resourceType, resourceId }) => {
+    server.registerTool('get_deep_link', {
+      description: 'Get or create a short slug deep link for a resource',
+      inputSchema: z.object({ resourceType: z.string(), resourceId: z.string() }),
+    }, async ({ resourceType, resourceId }) => {
       try {
         const slug = `${resourceType}-${resourceId.slice(0, 8)}`;
         await pool.query(`
@@ -187,7 +217,10 @@ export function mcpRouter(pool: Pool): Router {
       } catch (err) { return mcpError('get_deep_link', err, { resourceType, resourceId }); }
     });
 
-    server.tool('search_tasks', { query: z.string(), projectId: z.string().optional() }, async ({ query, projectId }) => {
+    server.registerTool('search_tasks', {
+      description: 'Search tasks by title across a project or all projects',
+      inputSchema: z.object({ query: z.string(), projectId: z.string().optional() }),
+    }, async ({ query, projectId }) => {
       try {
         const params: unknown[] = [`%${query}%`];
         const projectFilter = projectId ? `AND project_id = $2` : '';
@@ -200,11 +233,17 @@ export function mcpRouter(pool: Pool): Router {
       } catch (err) { return mcpError('search_tasks', err, { query, projectId }); }
     });
 
-    server.tool('sync_repo_yaml', { projectId: z.string() }, async ({ projectId }) => {
+    server.registerTool('sync_repo_yaml', {
+      description: 'Trigger a YAML sync for a project (delegates to REST endpoint)',
+      inputSchema: z.object({ projectId: z.string() }),
+    }, async ({ projectId }) => {
       return { content: [{ type: 'text', text: `Trigger sync via POST /api/projects/${projectId}/sync-yaml` }] };
     });
 
-    server.tool('get_yaml_source', { projectId: z.string() }, async ({ projectId }) => {
+    server.registerTool('get_yaml_source', {
+      description: 'Get the repo URL for a project\'s YAML source',
+      inputSchema: z.object({ projectId: z.string() }),
+    }, async ({ projectId }) => {
       try {
         const result = await pool.query('SELECT repo_url FROM projects WHERE id = $1', [projectId]);
         if (!result.rows.length) {

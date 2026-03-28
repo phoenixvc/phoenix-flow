@@ -10,7 +10,7 @@
     "db:seed": "tsx src/db/seed.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@modelcontextprotocol/sdk": "1.27.1",
     "@types/cors": "^2.8.19",
     "cors": "^2.8.6",
     "drizzle-orm": "^0.36.0",
